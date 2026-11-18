@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import type { PropsRemoto } from './contracts';
+import type { PropsRemoto } from '@ruan-diego/mini-event-contracts';
 import { Endereco } from './pages/Endereco';
 import { Frete } from './pages/Frete';
 import { Pagamento } from './pages/Pagamento';
