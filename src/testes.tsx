@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { criarEventBus } from '@ruan-diego/mini-event-contracts';
+import { criarEventBus, type EventBus } from '@ruan-diego/mini-event-contracts';
 import type { FotoDoCarrinho } from './api/checkout';
 import App from './App';
 
@@ -51,8 +51,8 @@ export function fetchFalso(rotas: Record<string, Resposta>) {
 
 export const CARRINHO = 'POST /carrinho/carrinhos/atual/checkout';
 
-export function montar(rota: string, opcoes: { token?: string | null } = {}) {
-  const eventBus = criarEventBus(new EventTarget());
+export function montar(rota: string, opcoes: { token?: string | null; eventBus?: EventBus } = {}) {
+  const eventBus = opcoes.eventBus ?? criarEventBus(new EventTarget());
   const navegacoes: string[] = [];
   eventBus.on('navegar', ({ rota: r }) => navegacoes.push(r));
   let local = '';
