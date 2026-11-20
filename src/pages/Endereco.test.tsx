@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CARRINHO, FOTO, fetchFalso, montar } from '../testes';
 import { formatarCep, validarEndereco, ENDERECO_VAZIO } from './enderecos';
@@ -97,6 +97,22 @@ describe('tela Endereço', () => {
     falhar = false;
     await userEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
     expect(await screen.findByLabelText('Destinatário')).toBeInTheDocument();
+  });
+
+  // Achado no E2E: logo depois do login o checkout consulta o carrinho antes de o drawer uni-lo ao do visitante.
+  it('carrinho:atualizado recarrega a foto: a consulta que veio vazia é refeita depois da união pós-login', async () => {
+    let unido = false;
+    const chamadas = fetchFalso({
+      [CARRINHO]: () => (unido ? { corpo: FOTO } : { status: 422, corpo: { detail: 'o carrinho está vazio' } }),
+    });
+    const t = montar('/checkout/endereco');
+    expect(await screen.findByRole('alert')).toHaveTextContent('o carrinho está vazio');
+
+    unido = true;
+    act(() => t.eventBus.emit('carrinho:atualizado', { quantidadeTotal: 3, subtotal: 250 }));
+    expect(await screen.findByLabelText('Destinatário')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(chamadas.filter((c) => c.url === '/carrinho/carrinhos/atual/checkout')).toHaveLength(2);
   });
 
   it('carrinho vazio avisa e leva à loja pelo evento navegar', async () => {
