@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input } from '@ruan-diego/mini-design-system';
 import type { Endereco as EnderecoDados } from '../api/checkout';
+import { buscarCep } from '../api/viacep';
 import { LayoutCheckout } from '../components/LayoutCheckout';
 import { useCheckout } from '../estado/CheckoutContext';
 import {
@@ -10,6 +11,7 @@ import {
   lerEnderecosSalvos,
   normalizar,
   salvarEndereco,
+  soDigitos,
   validarEndereco,
   type Erros,
 } from './enderecos';
@@ -45,6 +47,51 @@ function Escolha() {
     escolherEndereco(e);
     navigate(`${basePath}/frete`);
   }
+
+  // Busca pelo ViaCEP quando o CEP chega a 8 dígitos. Trocar o CEP (ou sair da tela) cancela a busca anterior no
+  // cleanup do efeito, então resposta velha nunca sobrescreve um CEP novo. Falha do ViaCEP não bloqueia: o cliente
+  // preenche à mão.
+  const cepDigitos = soDigitos(campos.cep);
+  const [consultado, setConsultado] = useState<string | null>(null); // CEP cuja consulta já terminou
+  const buscando = cepDigitos.length === 8 && consultado !== cepDigitos;
+
+  function aoDigitarCep(valor: string) {
+    setCampos((c) => ({ ...c, cep: formatarCep(valor) }));
+    setConsultado(null);
+    setErros((e) => {
+      const resto = { ...e };
+      delete resto.cep;
+      return resto;
+    });
+  }
+
+  useEffect(() => {
+    if (cepDigitos.length !== 8) return;
+    const controle = new AbortController();
+    buscarCep(cepDigitos, controle.signal)
+      .then((achado) => {
+        if (controle.signal.aborted) return;
+        setConsultado(cepDigitos);
+        if (!achado) {
+          setErros((e) => ({ ...e, cep: 'CEP não encontrado. Confira os números.' }));
+          return;
+        }
+        // Campo que o ViaCEP não sabe (CEP geral de cidade pequena não tem rua) fica como o cliente deixou.
+        setCampos((c) => ({
+          ...c,
+          logradouro: achado.logradouro || c.logradouro,
+          bairro: achado.bairro || c.bairro,
+          cidade: achado.cidade || c.cidade,
+          uf: achado.uf || c.uf,
+        }));
+        document.getElementById(achado.logradouro ? 'end-numero' : 'end-logradouro')?.focus();
+      })
+      .catch(() => {
+        // ViaCEP fora do ar, sem rede ou cancelado: segue o preenchimento manual.
+        if (!controle.signal.aborted) setConsultado(cepDigitos);
+      });
+    return () => controle.abort();
+  }, [cepDigitos]);
 
   function enviar(evento: FormEvent) {
     evento.preventDefault();
@@ -103,8 +150,11 @@ function Escolha() {
             inputMode: 'numeric',
             autoComplete: 'postal-code',
             required: true,
-            onChange: (ev: React.ChangeEvent<HTMLInputElement>) => setCampos((c) => ({ ...c, cep: formatarCep(ev.target.value) })),
+            onChange: (ev: React.ChangeEvent<HTMLInputElement>) => aoDigitarCep(ev.target.value),
           })}
+          <p role="status" className="muted" style={{ gridColumn: 'span 6', margin: 0, minHeight: 0 }}>
+            {buscando ? 'Buscando endereço…' : ''}
+          </p>
           {campo('logradouro', 'Rua', 'c4', { autoComplete: 'address-line1', required: true })}
           {campo('numero', 'Número', 'c2', { required: true })}
           {campo('complemento', 'Complemento (opcional)', 'c4', { autoComplete: 'address-line2' })}
