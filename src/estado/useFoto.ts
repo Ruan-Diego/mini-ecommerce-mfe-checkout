@@ -9,7 +9,7 @@ export type EstadoFoto =
 
 /** Carrega a foto final do carrinho ao entrar numa etapa. Erro e "tentar de novo" ficam por conta da tela. */
 export function useFoto(): EstadoFoto {
-  const { getToken } = useCheckout();
+  const { getToken, eventBus } = useCheckout();
   const [estado, setEstado] = useState<EstadoFoto>({ situacao: 'carregando' });
   const [tentativa, setTentativa] = useState(0);
 
@@ -17,6 +17,11 @@ export function useFoto(): EstadoFoto {
     setEstado({ situacao: 'carregando' });
     setTentativa((t) => t + 1);
   }, []);
+
+  // O carrinho avisa quando muda. Logo depois do login, por exemplo, o drawer une o carrinho de visitante ao do
+  // cliente e emite este evento: se o checkout chegou antes dessa união, a primeira consulta veio 'vazia' (ou
+  // desatualizada). Consultar de novo, sem piscar o esqueleto, deixa o resumo sempre igual ao carrinho.
+  useEffect(() => eventBus.on('carrinho:atualizado', () => setTentativa((t) => t + 1)), [eventBus]);
 
   useEffect(() => {
     let ativo = true;
