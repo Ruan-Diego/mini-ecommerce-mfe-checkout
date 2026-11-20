@@ -50,3 +50,5 @@
 .chk-spinner{display:inline-block;width:16px;height:16px;margin-right:var(--sp-2);border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:chk-gira .8s linear infinite;vertical-align:-3px}
 @keyframes chk-gira{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.chk-spinner{animation:none}}
+.chk-pix{align-items:flex-start;max-width:480px}
+.chk-codigo{width:100%;box-sizing:border-box;padding:var(--sp-3);background:var(--bg);color:var(--tx);border:1px solid var(--line2);border-radius:var(--r-md);font:13px var(--fm);resize:none}
