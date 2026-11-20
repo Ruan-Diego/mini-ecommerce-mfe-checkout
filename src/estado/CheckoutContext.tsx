@@ -10,6 +10,22 @@ export interface OpcaoDeFrete {
   prazoDias: number;
 }
 
+/** Pedido já criado nesta compra: uma segunda tentativa de pagamento reaproveita o pedido em vez de criar outro. */
+export interface PedidoPendente {
+  id: string;
+  total: number;
+  /** Resumo do que foi enviado (itens, endereço, frete): se mudar, o pedido antigo não serve mais. */
+  assinatura: string;
+}
+
+/** Pedido já criado nesta compra: uma segunda tentativa de pagamento reaproveita o pedido em vez de criar outro. */
+export interface PedidoPendente {
+  id: string;
+  total: number;
+  /** Resumo do que foi enviado (itens, endereço, frete): se mudar, o pedido antigo não serve mais. */
+  assinatura: string;
+}
+
 interface Estado {
   /** Prefixo das rotas do MFE no shell (ex.: /checkout). */
   basePath: string;
@@ -21,6 +37,8 @@ interface Estado {
   /** Frete escolhido na etapa 2. */
   frete: OpcaoDeFrete | null;
   escolherFrete: (f: OpcaoDeFrete | null) => void;
+  pedidoPendente: PedidoPendente | null;
+  guardarPedido: (p: PedidoPendente | null) => void;
 }
 
 const Contexto = createContext<Estado | null>(null);
@@ -39,9 +57,10 @@ interface Props {
 export function CheckoutProvider({ basePath, getToken, eventBus, children }: Props) {
   const [endereco, escolherEndereco] = useState<Endereco | null>(null);
   const [frete, escolherFrete] = useState<OpcaoDeFrete | null>(null);
+  const [pedidoPendente, guardarPedido] = useState<PedidoPendente | null>(null);
   const valor = useMemo(
-    () => ({ basePath, getToken, eventBus, endereco, escolherEndereco, frete, escolherFrete }),
-    [basePath, getToken, eventBus, endereco, frete],
+    () => ({ basePath, getToken, eventBus, endereco, escolherEndereco, frete, escolherFrete, pedidoPendente, guardarPedido }),
+    [basePath, getToken, eventBus, endereco, frete, pedidoPendente],
   );
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }
