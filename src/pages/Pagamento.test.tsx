@@ -146,24 +146,35 @@ describe('tela Pagamento', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: /Processando/ })).not.toBeInTheDocument());
   });
 
-  it('cartão recusado mostra o motivo, mantém o formulário e a nova tentativa paga o MESMO pedido', async () => {
-    let recusar = true;
+  it('cartão recusado cancela o pedido: mostra o motivo, tira o botão de pagar e oferece voltar à loja', async () => {
     const chamadas = fetchFalso(
-      rotas({ [PAGAMENTOS]: () => ({ status: 201, corpo: recusar ? pagamento({ status: 'RECUSADO', motivoRecusa: 'Cartão recusado pelo emissor' }) : pagamento({}) }) }),
+      rotas({ [PAGAMENTOS]: { status: 201, corpo: pagamento({ status: 'RECUSADO', motivoRecusa: 'Cartão recusado pelo emissor' }) } }),
     );
     const t = await irParaOPagamento();
     await preencherCartao('4111 1111 1111 1111');
     await userEvent.click(screen.getByRole('button', { name: /Pagar/ }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Pagamento recusado: Cartão recusado pelo emissor');
-    expect(screen.getByLabelText('Número do cartão')).toHaveValue('4111 1111 1111 1111'); // formulário mantido
+    const alerta = await screen.findByRole('alert');
+    expect(alerta).toHaveTextContent('Pagamento recusado: Cartão recusado pelo emissor');
+    expect(alerta).toHaveTextContent('O pedido foi cancelado');
+    expect(screen.queryByRole('button', { name: /Pagar/ })).not.toBeInTheDocument(); // sem nova tentativa no mesmo pedido
     expect(t.local()).toBe('/checkout/pagamento');
 
-    recusar = false;
+    await userEvent.click(screen.getByRole('button', { name: 'Voltar à loja' }));
+    expect(t.navegacoes).toEqual(['/']);
+    expect(corpoDe(chamadas, 'POST', '/pagamentos/pagamentos')).toHaveLength(1);
+  });
+
+  it('409 ao pagar (o pedido já foi cancelado no servidor) mostra o motivo e só oferece voltar à loja', async () => {
+    fetchFalso(rotas({ [PAGAMENTOS]: { status: 409, corpo: { detail: 'o pedido ped-1 foi cancelado: refaça a compra' } } }));
+    const t = await irParaOPagamento();
+    await preencherCartao();
     await userEvent.click(screen.getByRole('button', { name: /Pagar/ }));
-    await waitFor(() => expect(t.local()).toBe('/checkout/confirmado/ped-1'));
-    expect(corpoDe(chamadas, 'POST', '/pedidos/pedidos')).toHaveLength(1);
-    expect(corpoDe(chamadas, 'POST', '/pagamentos/pagamentos')).toHaveLength(2);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Este pedido foi cancelado. o pedido ped-1 foi cancelado: refaça a compra');
+    expect(screen.queryByRole('button', { name: /Pagar/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Voltar à loja' }));
+    expect(t.navegacoes).toEqual(['/']);
   });
 
   it('erro do servidor (preço mudou) aparece e permite tentar de novo', async () => {

@@ -82,26 +82,21 @@ describe('tela Aguardando Pix', () => {
     expect(consultas()).toBe(antes); // parou de consultar
   });
 
-  it('Pix expirado (status EXPIRADO) mostra o aviso e permite gerar outro código', async () => {
-    let tentativas = 0;
+  it('Pix expirado (status EXPIRADO) avisa que o pedido foi cancelado e só oferece voltar à loja', async () => {
     const chamadas = fetchFalso({
       [CARRINHO]: { corpo: FOTO },
-      [LISTA]: () => ({ corpo: tentativas === 0 ? [pix({ status: 'EXPIRADO' })] : [pix({ status: 'EXPIRADO' }), pix({ id: 'pag-2', transacaoId: 'tx-2' })] }),
-      'POST /pagamentos/pagamentos': () => {
-        tentativas++;
-        return { status: 201, corpo: pix({ id: 'pag-2', transacaoId: 'tx-2' }) };
-      },
+      [LISTA]: { corpo: [pix({ status: 'EXPIRADO' })] },
     });
-    montar('/checkout/pix/ped-1');
+    const t = montar('/checkout/pix/ped-1');
     await assentar();
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Pix expirado');
+    expect(screen.getByRole('alert')).toHaveTextContent('o pedido foi cancelado');
     expect(screen.queryByRole('img', { name: 'QR code do Pix' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Gerar outro Pix' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Gerar outro Pix' }));
-    await assentar();
-    const [novo] = chamadas.filter((c) => c.metodo === 'POST' && c.url === '/pagamentos/pagamentos');
-    expect(novo.corpo).toEqual({ pedidoId: 'ped-1', valor: 269.9, metodo: 'PIX' });
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Aguardando pagamento via Pix');
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar à loja' }));
+    expect(t.navegacoes).toEqual(['/']);
+    expect(chamadas.filter((c) => c.metodo === 'POST' && c.url === '/pagamentos/pagamentos')).toHaveLength(0);
   });
 
   it('o relógio chegando a zero também mostra expirado, sem esperar a próxima consulta', async () => {

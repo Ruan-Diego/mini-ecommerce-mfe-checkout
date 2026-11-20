@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { Button, Input } from '@ruan-diego/mini-design-system';
 import type { FotoDoCarrinho } from '../api/checkout';
 import { criarPedido, novaChaveDeIdempotencia } from '../api/pedidos';
+import { ErroDeApi } from '../api/http';
 import { pagar } from '../api/pagamentos';
 import { LayoutCheckout } from '../components/LayoutCheckout';
 import { useCheckout } from '../estado/CheckoutContext';
@@ -25,12 +26,14 @@ export function Pagamento() {
 }
 
 function Formulario({ foto }: { foto: FotoDoCarrinho }) {
-  const { basePath, getToken, endereco, frete, pedidoPendente, guardarPedido } = useCheckout();
+  const { basePath, getToken, eventBus, endereco, frete, pedidoPendente, guardarPedido } = useCheckout();
   const navigate = useNavigate();
   const [metodo, setMetodo] = useState<Metodo>('CARTAO');
   const [campos, setCampos] = useState<CamposCartao>(VAZIO);
   const [erros, setErros] = useState<ErrosCartao>({});
   const [enviando, setEnviando] = useState(false);
+  // Pedido cancelado (pagamento recusado ou já cancelado no servidor): a tela só oferece voltar à loja.
+  const [cancelado, setCancelado] = useState(false);
   const [mensagem, setMensagem] = useState<{ tipo: 'recusa' | 'erro'; texto: string } | null>(null);
 
   // Trava contra clique duplo: o `enviando` do estado só vale no próximo render, e dois cliques podem chegar
@@ -46,7 +49,7 @@ function Formulario({ foto }: { foto: FotoDoCarrinho }) {
 
   async function enviar(evento: FormEvent) {
     evento.preventDefault();
-    if (emAndamento.current || !endereco || !frete) return;
+    if (emAndamento.current || cancelado || !endereco || !frete) return;
 
     if (metodo === 'CARTAO') {
       const encontrados = validarCartao(campos);
@@ -77,10 +80,26 @@ function Formulario({ foto }: { foto: FotoDoCarrinho }) {
 
       // 2) Pagamento do valor que o servidor calculou para o pedido.
       chavePagamento.current ??= novaChaveDeIdempotencia();
-      const pagamento = await pagar(getToken, pedido.id, pedido.total, metodo, chavePagamento.current, metodo === 'CARTAO' ? soDigitos(campos.numero) : undefined);
+      let pagamento;
+      try {
+        pagamento = await pagar(getToken, pedido.id, pedido.total, metodo, chavePagamento.current, metodo === 'CARTAO' ? soDigitos(campos.numero) : undefined);
+      } catch (e) {
+        if (e instanceof ErroDeApi && e.status === 409) {
+          // O pedido já foi cancelado (pagamento recusado antes, estoque, prazo): não há o que pagar neste pedido.
+          chavePagamento.current = null;
+          guardarPedido(null);
+          setCancelado(true);
+          setMensagem({ tipo: 'erro', texto: e.message });
+          return;
+        }
+        throw e;
+      }
       chavePagamento.current = null;
 
       if (pagamento.status === 'RECUSADO') {
+        // Pagamento recusado cancela o pedido (e libera o estoque): uma nova tentativa exige uma nova compra.
+        guardarPedido(null);
+        setCancelado(true);
         setMensagem({ tipo: 'recusa', texto: pagamento.motivoRecusa ?? 'O pagamento foi recusado.' });
       } else if (metodo === 'PIX') {
         soltarTrava = false;
@@ -164,25 +183,39 @@ function Formulario({ foto }: { foto: FotoDoCarrinho }) {
 
       {mensagem && (
         <div className="chk-recusa" role="alert">
-          <p>{mensagem.tipo === 'recusa' ? `Pagamento recusado: ${mensagem.texto}` : `Não foi possível concluir o pagamento. ${mensagem.texto}`}</p>
+          <p>
+            {mensagem.tipo === 'recusa'
+              ? `Pagamento recusado: ${mensagem.texto}. O pedido foi cancelado e o estoque liberado; volte à loja e refaça a compra.`
+              : cancelado
+                ? `Este pedido foi cancelado. ${mensagem.texto}`
+                : `Não foi possível concluir o pagamento. ${mensagem.texto}`}
+          </p>
         </div>
       )}
 
-      <div className="chk-acoes">
-        <Button type="button" variante="secundario" disabled={enviando} onClick={() => navigate(`${basePath}/frete`)}>
-          Voltar
-        </Button>
-        <Button type="submit" disabled={enviando}>
-          {enviando ? (
-            <>
-              <span className="chk-spinner" aria-hidden="true" />
-              Processando…
-            </>
-          ) : (
-            `Pagar ${formatarPreco(total)}`
-          )}
-        </Button>
-      </div>
+      {cancelado ? (
+        <div className="chk-acoes">
+          <Button type="button" onClick={() => eventBus.emit('navegar', { rota: '/' })}>
+            Voltar à loja
+          </Button>
+        </div>
+      ) : (
+        <div className="chk-acoes">
+          <Button type="button" variante="secundario" disabled={enviando} onClick={() => navigate(`${basePath}/frete`)}>
+            Voltar
+          </Button>
+          <Button type="submit" disabled={enviando}>
+            {enviando ? (
+              <>
+                <span className="chk-spinner" aria-hidden="true" />
+                Processando…
+              </>
+            ) : (
+              `Pagar ${formatarPreco(total)}`
+            )}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

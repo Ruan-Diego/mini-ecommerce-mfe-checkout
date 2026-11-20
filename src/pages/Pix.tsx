@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@ruan-diego/mini-design-system';
-import { novaChaveDeIdempotencia } from '../api/pedidos';
-import { pagamentosDoPedido, pagar, simularPagamentoPix, type Pagamento } from '../api/pagamentos';
+import { pagamentosDoPedido, simularPagamentoPix, type Pagamento } from '../api/pagamentos';
 import { QrCode } from '../components/QrCode';
 import { useCheckout } from '../estado/CheckoutContext';
 import { formatarPreco } from '../formato';
@@ -30,7 +29,7 @@ const maisRecentePix = (lista: Pagamento[]) =>
 /** Tela Aguardando Pix: QR code, copia e cola, contagem de 30 minutos e consulta do status a cada 5 s. */
 export function Pix() {
   const { pedidoId = '' } = useParams();
-  const { basePath, getToken } = useCheckout();
+  const { basePath, getToken, eventBus } = useCheckout();
   const navigate = useNavigate();
   const [pagamento, setPagamento] = useState<Pagamento | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -97,21 +96,6 @@ export function Pix() {
     }
   }
 
-  async function gerarOutro() {
-    if (!pagamento || ocupado) return;
-    setOcupado(true);
-    try {
-      await pagar(getToken, pedidoId, pagamento.valor, 'PIX', novaChaveDeIdempotencia());
-      setPagamento(null);
-      setErro(null);
-      await consultar();
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não foi possível gerar outro Pix.');
-    } finally {
-      setOcupado(false);
-    }
-  }
-
   async function simular() {
     if (!pagamento || ocupado) return;
     setOcupado(true);
@@ -150,15 +134,10 @@ export function Pix() {
         {expirado ? (
           <>
             <p role="alert" style={{ margin: 0 }}>
-              O código Pix expirou ou o pagamento não foi concluído. Gere outro código para pagar este pedido.
+              O código Pix expirou e o pedido foi cancelado (o estoque é liberado). Volte à loja e refaça a compra.
             </p>
             <div className="chk-acoes">
-              <Button onClick={() => void gerarOutro()} disabled={ocupado}>
-                Gerar outro Pix
-              </Button>
-              <Button variante="secundario" onClick={() => navigate(`${basePath}/pagamento`)}>
-                Pagar de outra forma
-              </Button>
+              <Button onClick={() => eventBus.emit('navegar', { rota: '/' })}>Voltar à loja</Button>
             </div>
           </>
         ) : (
