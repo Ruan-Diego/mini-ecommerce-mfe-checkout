@@ -1,0 +1,10 @@
+{
+  "latestErrorEvent": {
+    "code": "TYPE-001",
+    "message": "Failed to generate type declaration. Execute the below cmd to reproduce and fix the error. #TYPE-001\nargs: {\"cmd\":\"D:\\\\nvm4w\\\\nodejs\\\\node.exe D:\\\\GitHub\\\\mini-ecommerce\\\\mini-ecommerce-mfe-checkout\\\\node_modules\\\\.pnpm\\\\typescript@5.9.3\\\\node_modules\\\\typescript\\\\bin\\\\tsc --project D:\\\\GitHub\\\\mini-ecommerce\\\\mini-ecommerce-mfe-checkout\\\\node_modules\\\\.federation\\\\tsconfig.1dd561d51b81bb301cad291c7ca3854f.json\"}\nView the docs to see how to solve: https://module-federation.io/guide/troubleshooting/type#type-001",
+    "args": {
+      "cmd": "D:\\nvm4w\\nodejs\\node.exe D:\\GitHub\\mini-ecommerce\\mini-ecommerce-mfe-checkout\\node_modules\\.pnpm\\typescript@5.9.3\\node_modules\\typescript\\bin\\tsc --project D:\\GitHub\\mini-ecommerce\\mini-ecommerce-mfe-checkout\\node_modules\\.federation\\tsconfig.1dd561d51b81bb301cad291c7ca3854f.json"
+    },
+    "timestamp": 1795151990774
+  }
+}

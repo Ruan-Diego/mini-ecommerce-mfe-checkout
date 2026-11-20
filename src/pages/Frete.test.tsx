@@ -44,9 +44,9 @@ describe('tela Frete', () => {
     await irParaOFrete();
     const resumo = screen.getByRole('complementary', { name: 'Resumo do pedido' });
 
-    await waitFor(() => expect(within(resumo).getByText(/244,90/)).toBeInTheDocument()); // 225 + 19,90
+    await waitFor(() => expect(within(resumo).getByText(/269,90/)).toBeInTheDocument()); // 250 + 19,90
     await userEvent.click(screen.getByRole('radio', { name: /Expresso/ }));
-    expect(within(resumo).getByText(/259,90/)).toBeInTheDocument(); // 225 + 34,90
+    expect(within(resumo).getByText(/284,90/)).toBeInTheDocument(); // 250 + 34,90
     expect(within(resumo).getByText(/34,90/, { selector: 'dd' })).toBeInTheDocument();
   });
 
