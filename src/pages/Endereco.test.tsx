@@ -71,6 +71,69 @@ describe('tela Endereço', () => {
     expect(salvos[0]).toMatchObject({ destinatario: 'Ana Souza', cep: '01310100', uf: 'SP' });
   });
 
+  describe('preenchimento pelo ViaCEP', () => {
+    const VIACEP = 'GET /ws/01310100/json/';
+    const PAULISTA = { logradouro: 'Avenida Paulista', bairro: 'Bela Vista', localidade: 'São Paulo', uf: 'SP' };
+
+    it('ao completar o CEP preenche rua, bairro, cidade e UF e leva o foco ao número', async () => {
+      const chamadas = fetchFalso({ [CARRINHO]: { corpo: FOTO }, [VIACEP]: { corpo: PAULISTA } });
+      montar('/checkout/endereco');
+      await userEvent.type(await screen.findByLabelText('CEP'), '01310100');
+
+      await waitFor(() => expect(screen.getByLabelText('Rua')).toHaveValue('Avenida Paulista'));
+      expect(screen.getByLabelText('Bairro')).toHaveValue('Bela Vista');
+      expect(screen.getByLabelText('Cidade')).toHaveValue('São Paulo');
+      expect(screen.getByLabelText('UF')).toHaveValue('SP');
+      expect(screen.getByLabelText('Número')).toHaveFocus();
+      // Uma consulta só, feita quando o CEP chegou a 8 dígitos (e não a cada tecla).
+      expect(chamadas.filter((c) => c.url.startsWith('/ws/'))).toHaveLength(1);
+    });
+
+    it('CEP inexistente mostra o erro no campo e não preenche nada', async () => {
+      fetchFalso({ [CARRINHO]: { corpo: FOTO }, [VIACEP]: { corpo: { erro: 'true' } } });
+      montar('/checkout/endereco');
+      await userEvent.type(await screen.findByLabelText('CEP'), '01310100');
+
+      await waitFor(() => expect(screen.getByLabelText('CEP')).toHaveAccessibleDescription('CEP não encontrado. Confira os números.'));
+      expect(screen.getByLabelText('CEP')).toBeInvalid();
+      expect(screen.getByLabelText('Rua')).toHaveValue('');
+    });
+
+    it('o erro some ao corrigir o CEP', async () => {
+      fetchFalso({ [CARRINHO]: { corpo: FOTO }, [VIACEP]: { corpo: { erro: true } } });
+      montar('/checkout/endereco');
+      const cep = await screen.findByLabelText('CEP');
+      await userEvent.type(cep, '01310100');
+      await waitFor(() => expect(cep).toBeInvalid());
+
+      await userEvent.type(cep, '{Backspace}');
+      expect(cep).toBeValid();
+    });
+
+    it('ViaCEP fora do ar não bloqueia: o cliente preenche à mão e segue', async () => {
+      fetchFalso({ [CARRINHO]: { corpo: FOTO }, [VIACEP]: { status: 503, corpo: {} } });
+      montar('/checkout/endereco');
+      await userEvent.type(await screen.findByLabelText('CEP'), '01310100');
+
+      await waitFor(() => expect(screen.queryByText('Buscando endereço…')).not.toBeInTheDocument());
+      expect(screen.getByLabelText('CEP')).toBeValid();
+      await userEvent.type(screen.getByLabelText('Rua'), 'Avenida Paulista');
+      expect(screen.getByLabelText('Rua')).toHaveValue('Avenida Paulista');
+    });
+
+    it('CEP geral sem rua preenche cidade e UF, preserva o que o cliente digitou e foca a rua', async () => {
+      fetchFalso({ [CARRINHO]: { corpo: FOTO }, [VIACEP]: { corpo: { logradouro: '', bairro: '', localidade: 'Cidadezinha', uf: 'mg' } } });
+      montar('/checkout/endereco');
+      await userEvent.type(await screen.findByLabelText('Bairro'), 'Centro');
+      await userEvent.type(screen.getByLabelText('CEP'), '01310100');
+
+      await waitFor(() => expect(screen.getByLabelText('Cidade')).toHaveValue('Cidadezinha'));
+      expect(screen.getByLabelText('UF')).toHaveValue('MG');
+      expect(screen.getByLabelText('Bairro')).toHaveValue('Centro');
+      expect(screen.getByLabelText('Rua')).toHaveFocus();
+    });
+  });
+
   it('com endereços salvos, lista para escolher e permite abrir o formulário de novo endereço', async () => {
     localStorage.setItem(
       'mini:enderecos',
