@@ -13,6 +13,8 @@ export interface Pagamento {
   pixCodigo: string | null;
   pixExpiraEm: string | null;
   motivoRecusa: string | null;
+  /** ISO-8601; usado para achar o pagamento mais recente de um pedido. */
+  criadoEm?: string;
 }
 
 /**
