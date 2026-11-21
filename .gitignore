@@ -7,3 +7,6 @@ dist/
 .DS_Store
 *.tsbuildinfo
 .mf/
+
+# Contratos Pact gerados pelos testes: a cópia versionada fica no backend (pnpm pact:copiar)
+pacts/
